@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>实验曲线拟合台</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <h1>📈 实验曲线拟合台</h1>
+      <p class="subtitle">科学计算工具 · 支持线性/指数/二次曲线拟合</p>
+    </header>
+
+    <div class="main-layout">
+      <aside class="sidebar left-panel">
+        <div class="panel-section">
+          <h2>📋 数据录入</h2>
+          <div class="dataset-controls">
+            <input type="text" id="datasetName" placeholder="数据集名称" value="我的实验数据">
+          </div>
+          <div class="table-toolbar">
+            <button id="addRowBtn" class="btn btn-primary">➕ 添加行</button>
+            <button id="clearDataBtn" class="btn btn-secondary">🗑 清空</button>
+            <button id="loadSampleBtn" class="btn btn-info">📚 示例数据</button>
+          </div>
+          <div class="data-table-wrapper">
+            <table id="dataTable" class="data-table">
+              <thead>
+                <tr>
+                  <th style="width:50px">#</th>
+                  <th>X</th>
+                  <th>Y</th>
+                  <th style="width:60px">操作</th>
+                </tr>
+              </thead>
+              <tbody id="dataTableBody">
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <h2>🔬 拟合设置</h2>
+          <div class="model-selector">
+            <label class="model-option">
+              <input type="radio" name="modelType" value="linear" checked>
+              <span class="model-label">线性模型</span>
+              <span class="model-formula">y = ax + b</span>
+            </label>
+            <label class="model-option">
+              <input type="radio" name="modelType" value="exponential">
+              <span class="model-label">指数模型</span>
+              <span class="model-formula">y = a·eᵇˣ</span>
+            </label>
+            <label class="model-option">
+              <input type="radio" name="modelType" value="quadratic">
+              <span class="model-label">二次曲线</span>
+              <span class="model-formula">y = ax² + bx + c</span>
+            </label>
+          </div>
+          <button id="fitBtn" class="btn btn-success btn-large">🚀 执行拟合</button>
+        </div>
+
+        <div class="panel-section">
+          <h2>📊 误差指标</h2>
+          <div id="metricsPanel" class="metrics-panel">
+            <div class="metric-item">
+              <span class="metric-label">R² 决定系数</span>
+              <span class="metric-value" id="metricR2">—</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">MSE 均方误差</span>
+              <span class="metric-value" id="metricMSE">—</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">RMSE 均方根</span>
+              <span class="metric-value" id="metricRMSE">—</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">MAE 平均绝对误差</span>
+              <span class="metric-value" id="metricMAE">—</span>
+            </div>
+            <div class="equation-display" id="equationDisplay">
+              <span class="eq-label">拟合方程:</span>
+              <span class="eq-formula" id="eqFormula">等待拟合...</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="center-panel">
+        <div class="charts-container">
+          <div class="chart-section">
+            <div class="chart-header">
+              <h2>📊 拟合曲线</h2>
+              <div class="legend-info">
+                <span class="legend-item"><span class="legend-color" style="background:#3b82f6"></span>原始数据</span>
+                <span class="legend-item"><span class="legend-color" style="background:#ef4444"></span>拟合曲线</span>
+                <span class="legend-item"><span class="legend-color" style="background:#f59e0b"></span>异常点</span>
+              </div>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="fitChart"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-section">
+            <div class="chart-header">
+              <h2>📉 残差分析</h2>
+              <div class="legend-info">
+                <span class="legend-item"><span class="legend-color" style="background:#8b5cf6"></span>残差</span>
+                <span class="legend-item"><span class="legend-color" style="background:#10b981;border-style:dashed"></span>零参考线</span>
+              </div>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="residualChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="outliers-section" id="outliersSection" style="display:none;">
+          <h3>⚠️ 异常点标记 (Z-score > 2)</h3>
+          <div id="outliersList" class="outliers-list"></div>
+        </div>
+      </main>
+
+      <aside class="sidebar right-panel">
+        <div class="panel-section">
+          <div class="tabs">
+            <button class="tab-btn active" data-tab="history">📜 历史记录</button>
+            <button class="tab-btn" data-tab="datasets">💾 数据集</button>
+          </div>
+
+          <div class="tab-content" id="tab-history">
+            <div id="historyList" class="history-list">
+              <div class="empty-state">暂无历史记录</div>
+            </div>
+          </div>
+
+          <div class="tab-content" id="tab-datasets" style="display:none;">
+            <div class="dataset-actions">
+              <button id="updateDatasetBtn" class="btn btn-success btn-block" style="display:none;">💾 更新当前数据集</button>
+              <button id="saveDatasetBtn" class="btn btn-primary btn-block">➕ 另存为新数据集</button>
+            </div>
+            <div id="datasetsList" class="datasets-list">
+              <div class="empty-state">暂无保存的数据集</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div id="toast" class="toast"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

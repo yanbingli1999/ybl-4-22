@@ -1,0 +1,15 @@
+{
+  "name": "curve-fitting-lab",
+  "version": "1.0.0",
+  "description": "实验曲线拟合台 - 科学计算Web工具",
+  "main": "server.js",
+  "scripts": {
+    "start": "set PORT=5420&& node server.js",
+    "dev": "set PORT=5420&& node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "mathjs": "^11.11.0"
+  }
+}
