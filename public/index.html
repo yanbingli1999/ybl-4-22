@@ -44,23 +44,64 @@
 
         <div class="panel-section">
           <h2>🔬 拟合设置</h2>
-          <div class="model-selector">
-            <label class="model-option">
-              <input type="radio" name="modelType" value="linear" checked>
-              <span class="model-label">线性模型</span>
-              <span class="model-formula">y = ax + b</span>
-            </label>
-            <label class="model-option">
-              <input type="radio" name="modelType" value="exponential">
-              <span class="model-label">指数模型</span>
-              <span class="model-formula">y = a·eᵇˣ</span>
-            </label>
-            <label class="model-option">
-              <input type="radio" name="modelType" value="quadratic">
-              <span class="model-label">二次曲线</span>
-              <span class="model-formula">y = ax² + bx + c</span>
-            </label>
+          <div class="fit-tabs">
+            <button class="fit-tab-btn active" data-fit-tab="preset">预设模型</button>
+            <button class="fit-tab-btn" data-fit-tab="custom">自定义公式</button>
           </div>
+
+          <div class="fit-tab-content" id="fit-tab-preset">
+            <div class="model-selector">
+              <label class="model-option">
+                <input type="radio" name="modelType" value="linear" checked>
+                <span class="model-label">线性模型</span>
+                <span class="model-formula">y = ax + b</span>
+              </label>
+              <label class="model-option">
+                <input type="radio" name="modelType" value="exponential">
+                <span class="model-label">指数模型</span>
+                <span class="model-formula">y = a·eᵇˣ</span>
+              </label>
+              <label class="model-option">
+                <input type="radio" name="modelType" value="quadratic">
+                <span class="model-label">二次曲线</span>
+                <span class="model-formula">y = ax² + bx + c</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="fit-tab-content" id="fit-tab-custom" style="display:none;">
+            <div class="custom-formula-section">
+              <label class="formula-label">公式表达式 (使用 x 作为自变量)</label>
+              <input type="text" id="customFormula" placeholder="例如: a * x^2 + b * x + c" class="formula-input">
+              <div id="formulaError" class="formula-error" style="display:none;"></div>
+              <div class="formula-hint">
+                支持: +, -, *, /, ^, sqrt, sin, cos, tan, log, exp, abs, pi, e 等
+              </div>
+            </div>
+
+            <div class="params-section">
+              <div class="params-header">
+                <span class="params-title">参数设置</span>
+                <button id="addParamBtn" class="btn btn-primary btn-small">➕ 添加参数</button>
+              </div>
+              <div class="params-table-wrapper">
+                <table class="params-table">
+                  <thead>
+                    <tr>
+                      <th>参数名</th>
+                      <th>初值</th>
+                      <th>下限</th>
+                      <th>上限</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="paramsTableBody">
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
           <button id="fitBtn" class="btn btn-success btn-large">🚀 执行拟合</button>
         </div>
 
@@ -86,6 +127,19 @@
             <div class="equation-display" id="equationDisplay">
               <span class="eq-label">拟合方程:</span>
               <span class="eq-formula" id="eqFormula">等待拟合...</span>
+            </div>
+            <div class="params-result-section" id="paramsResultSection" style="display:none;">
+              <span class="params-result-label">拟合参数:</span>
+              <table class="params-result-table" id="paramsResultTable">
+                <thead>
+                  <tr>
+                    <th>参数</th>
+                    <th>拟合值</th>
+                  </tr>
+                </thead>
+                <tbody id="paramsResultBody">
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

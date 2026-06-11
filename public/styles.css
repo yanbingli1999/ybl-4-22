@@ -604,6 +604,241 @@ body {
   border-bottom: 2px solid #e2e8f0;
 }
 
+.fit-tabs {
+  display: flex;
+  margin-bottom: 16px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 4px;
+}
+
+.fit-tab-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #64748b;
+}
+
+.fit-tab-btn.active {
+  background: white;
+  color: #1e293b;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.fit-tab-content {
+  margin-bottom: 8px;
+}
+
+.custom-formula-section {
+  margin-bottom: 16px;
+}
+
+.formula-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+  margin-bottom: 8px;
+}
+
+.formula-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: 'Cambria Math', 'Consolas', monospace;
+  transition: all 0.2s;
+}
+
+.formula-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
+.formula-error {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #fee2e2;
+  color: #dc2626;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.formula-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.params-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 2px solid #e2e8f0;
+}
+
+.params-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.params-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.btn-small {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.params-table-wrapper {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.params-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.params-table thead {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  z-index: 1;
+}
+
+.params-table th {
+  padding: 8px 6px;
+  text-align: left;
+  font-weight: 600;
+  color: #475569;
+  border-bottom: 2px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 11px;
+}
+
+.params-table td {
+  padding: 6px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.params-table input {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.params-table input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+}
+
+.delete-param-btn {
+  padding: 4px 8px;
+  background: #fee2e2;
+  color: #dc2626;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.delete-param-btn:hover {
+  background: #fecaca;
+}
+
+.params-result-section {
+  margin-top: 10px;
+  padding: 12px;
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  border-radius: 10px;
+  border: 1px solid #86efac;
+}
+
+.params-result-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #166534;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.params-result-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.params-result-table th,
+.params-result-table td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid #bbf7d0;
+}
+
+.params-result-table th {
+  font-weight: 600;
+  color: #166534;
+  font-size: 11px;
+}
+
+.params-result-table td {
+  font-family: 'Cambria Math', 'Consolas', monospace;
+  color: #14532d;
+  font-weight: 500;
+}
+
+.fit-info-section {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: #fef3c7;
+  border-radius: 8px;
+  font-size: 11px;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.fit-info-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.fit-info-row:last-child {
+  margin-bottom: 0;
+}
+
+.fit-info-label {
+  font-weight: 500;
+}
+
+.fit-info-value {
+  font-family: 'Cambria Math', 'Consolas', monospace;
+  font-weight: 600;
+}
+
 @media (max-width: 1400px) {
   .main-layout {
     grid-template-columns: 300px 1fr 280px;

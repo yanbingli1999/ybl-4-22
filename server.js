@@ -92,7 +92,7 @@ function quadraticRegression(points) {
   }
 }
 
-function calculateMetrics(points, modelType, params) {
+function calculateMetrics(points, modelType, params, customFormula = null) {
   const n = points.length;
   let yMean = 0;
   points.forEach(p => yMean += p.y);
@@ -106,16 +106,21 @@ function calculateMetrics(points, modelType, params) {
 
   points.forEach(p => {
     let predicted;
-    switch (modelType) {
-      case 'linear':
-        predicted = params.a * p.x + params.b;
-        break;
-      case 'exponential':
-        predicted = params.a * Math.exp(params.b * p.x);
-        break;
-      case 'quadratic':
-        predicted = params.a * p.x * p.x + params.b * p.x + params.c;
-        break;
+    if (modelType === 'custom' && customFormula) {
+      const scope = { x: p.x, ...params };
+      predicted = math.evaluate(customFormula, scope);
+    } else {
+      switch (modelType) {
+        case 'linear':
+          predicted = params.a * p.x + params.b;
+          break;
+        case 'exponential':
+          predicted = params.a * Math.exp(params.b * p.x);
+          break;
+        case 'quadratic':
+          predicted = params.a * p.x * p.x + params.b * p.x + params.c;
+          break;
+      }
     }
     const residual = p.y - predicted;
     residuals.push(residual);
@@ -140,7 +145,7 @@ function calculateMetrics(points, modelType, params) {
   return { rSquared, mse, rmse, mae, residuals, outliers };
 }
 
-function generateCurvePoints(points, modelType, params, numPoints = 100) {
+function generateCurvePoints(points, modelType, params, numPoints = 100, customFormula = null) {
   const xs = points.map(p => p.x);
   const minX = Math.min(...xs);
   const maxX = Math.max(...xs);
@@ -152,20 +157,235 @@ function generateCurvePoints(points, modelType, params, numPoints = 100) {
   for (let i = 0; i < numPoints; i++) {
     const x = extendedMin + i * step;
     let y;
-    switch (modelType) {
-      case 'linear':
-        y = params.a * x + params.b;
-        break;
-      case 'exponential':
-        y = params.a * Math.exp(params.b * x);
-        break;
-      case 'quadratic':
-        y = params.a * x * x + params.b * x + params.c;
-        break;
+    if (modelType === 'custom' && customFormula) {
+      const scope = { x, ...params };
+      y = math.evaluate(customFormula, scope);
+    } else {
+      switch (modelType) {
+        case 'linear':
+          y = params.a * x + params.b;
+          break;
+        case 'exponential':
+          y = params.a * Math.exp(params.b * x);
+          break;
+        case 'quadratic':
+          y = params.a * x * x + params.b * x + params.c;
+          break;
+      }
     }
     curvePoints.push({ x, y });
   }
   return curvePoints;
+}
+
+function validateCustomFormula(formula, paramNames) {
+  try {
+    const testScope = { x: 1 };
+    paramNames.forEach(name => {
+      testScope[name] = 1;
+    });
+    const result = math.evaluate(formula, testScope);
+    if (typeof result !== 'number' || !isFinite(result)) {
+      return { valid: false, error: '公式计算结果不是有限数值' };
+    }
+    return { valid: true };
+  } catch (e) {
+    return { valid: false, error: e.message };
+  }
+}
+
+function levenbergMarquardt(points, formula, paramConfigs, options = {}) {
+  const {
+    maxIterations = 200,
+    tolerance = 1e-10,
+    initialLambda = 1e-3,
+    lambdaUp = 10,
+    lambdaDown = 10
+  } = options;
+
+  const paramNames = paramConfigs.map(p => p.name);
+  const nParams = paramNames.length;
+  const nPoints = points.length;
+
+  let params = paramConfigs.map(p => p.initial);
+  let lambda = initialLambda;
+
+  const clampParams = (vals) => {
+    return vals.map((v, i) => {
+      const cfg = paramConfigs[i];
+      let val = v;
+      if (cfg.lowerBound !== undefined && val < cfg.lowerBound) val = cfg.lowerBound;
+      if (cfg.upperBound !== undefined && val > cfg.upperBound) val = cfg.upperBound;
+      return val;
+    });
+  };
+
+  const evaluateModel = (x, paramVals) => {
+    const scope = { x };
+    paramNames.forEach((name, i) => {
+      scope[name] = paramVals[i];
+    });
+    return math.evaluate(formula, scope);
+  };
+
+  const computeResiduals = (paramVals) => {
+    const residuals = [];
+    for (let i = 0; i < nPoints; i++) {
+      const yPred = evaluateModel(points[i].x, paramVals);
+      residuals.push(points[i].y - yPred);
+    }
+    return residuals;
+  };
+
+  const computeCost = (residuals) => {
+    let sum = 0;
+    for (let i = 0; i < residuals.length; i++) {
+      sum += residuals[i] * residuals[i];
+    }
+    return sum;
+  };
+
+  const computeJacobian = (paramVals, eps = 1e-8) => {
+    const J = [];
+    for (let i = 0; i < nPoints; i++) {
+      const row = [];
+      const x = points[i].x;
+      const yBase = evaluateModel(x, paramVals);
+      for (let j = 0; j < nParams; j++) {
+        const perturbed = [...paramVals];
+        const step = Math.max(Math.abs(paramVals[j]) * eps, eps);
+        perturbed[j] += step;
+        const yPerturbed = evaluateModel(x, perturbed);
+        row.push((yPerturbed - yBase) / step);
+      }
+      J.push(row);
+    }
+    return J;
+  };
+
+  const multiplyJtJ = (J) => {
+    const result = [];
+    for (let i = 0; i < nParams; i++) {
+      result[i] = [];
+      for (let j = 0; j < nParams; j++) {
+        let sum = 0;
+        for (let k = 0; k < nPoints; k++) {
+          sum += J[k][i] * J[k][j];
+        }
+        result[i][j] = sum;
+      }
+    }
+    return result;
+  };
+
+  const multiplyJtR = (J, residuals) => {
+    const result = [];
+    for (let i = 0; i < nParams; i++) {
+      let sum = 0;
+      for (let k = 0; k < nPoints; k++) {
+        sum += J[k][i] * residuals[k];
+      }
+      result[i] = sum;
+    }
+    return result;
+  };
+
+  const solveLinearSystem = (A, b) => {
+    const n = A.length;
+    const aug = A.map((row, i) => [...row, b[i]]);
+
+    for (let i = 0; i < n; i++) {
+      let maxRow = i;
+      let maxVal = Math.abs(aug[i][i]);
+      for (let k = i + 1; k < n; k++) {
+        if (Math.abs(aug[k][i]) > maxVal) {
+          maxVal = Math.abs(aug[k][i]);
+          maxRow = k;
+        }
+      }
+      [aug[i], aug[maxRow]] = [aug[maxRow], aug[i]];
+
+      const pivot = aug[i][i];
+      if (Math.abs(pivot) < 1e-15) return null;
+
+      for (let j = i; j <= n; j++) {
+        aug[i][j] /= pivot;
+      }
+
+      for (let k = 0; k < n; k++) {
+        if (k !== i) {
+          const factor = aug[k][i];
+          for (let j = i; j <= n; j++) {
+            aug[k][j] -= factor * aug[i][j];
+          }
+        }
+      }
+    }
+
+    return aug.map(row => row[n]);
+  };
+
+  let residuals = computeResiduals(params);
+  let cost = computeCost(residuals);
+  let iterations = 0;
+  let converged = false;
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    iterations = iter + 1;
+    const J = computeJacobian(params);
+    const JtJ = multiplyJtJ(J);
+    const JtR = multiplyJtR(J, residuals);
+
+    let delta = null;
+    let attempts = 0;
+    while (delta === null && attempts < 20) {
+      const A = JtJ.map((row, i) => {
+        const r = [...row];
+        r[i] += lambda * (row[i] + 1e-10);
+        return r;
+      });
+
+      delta = solveLinearSystem(A, JtR);
+      if (delta === null) {
+        lambda *= lambdaUp;
+        attempts++;
+      }
+    }
+
+    if (delta === null) break;
+
+    const newParams = clampParams(params.map((p, i) => p + delta[i]));
+    const newResiduals = computeResiduals(newParams);
+    const newCost = computeCost(newResiduals);
+
+    if (newCost < cost) {
+      const costReduction = (cost - newCost) / cost;
+      params = newParams;
+      residuals = newResiduals;
+      cost = newCost;
+      lambda /= lambdaDown;
+
+      if (costReduction < tolerance || cost < tolerance) {
+        converged = true;
+        break;
+      }
+    } else {
+      lambda *= lambdaUp;
+      if (lambda > 1e15) break;
+    }
+  }
+
+  const paramObject = {};
+  paramNames.forEach((name, i) => {
+    paramObject[name] = params[i];
+  });
+
+  return {
+    params: paramObject,
+    cost,
+    iterations,
+    converged
+  };
 }
 
 app.get('/api/datasets', (req, res) => {
@@ -218,7 +438,7 @@ app.delete('/api/datasets/:id', (req, res) => {
 });
 
 app.post('/api/fit', (req, res) => {
-  const { datasetId, points, modelType, datasetName } = req.body;
+  const { datasetId, points, modelType, datasetName, customFormula, paramConfigs } = req.body;
   if (!points || !Array.isArray(points) || points.length < 2) {
     return res.status(400).json({ error: '至少需要2个数据点' });
   }
@@ -228,6 +448,7 @@ app.post('/api/fit', (req, res) => {
 
   let params;
   let modelEquation;
+  let customInfo = null;
 
   try {
     switch (modelType) {
@@ -243,6 +464,29 @@ app.post('/api/fit', (req, res) => {
         params = quadraticRegression(points);
         modelEquation = `y = ${params.a.toFixed(6)}x² + ${params.b.toFixed(6)}x + ${params.c.toFixed(6)}`;
         break;
+      case 'custom':
+        if (!customFormula) {
+          return res.status(400).json({ error: '请输入自定义公式' });
+        }
+        if (!paramConfigs || !Array.isArray(paramConfigs) || paramConfigs.length === 0) {
+          return res.status(400).json({ error: '请至少设置一个参数' });
+        }
+        const paramNames = paramConfigs.map(p => p.name);
+        const validation = validateCustomFormula(customFormula, paramNames);
+        if (!validation.valid) {
+          return res.status(400).json({ error: '公式解析错误: ' + validation.error });
+        }
+        const lmResult = levenbergMarquardt(points, customFormula, paramConfigs);
+        params = lmResult.params;
+        modelEquation = `y = ${customFormula}`;
+        customInfo = {
+          formula: customFormula,
+          paramConfigs,
+          iterations: lmResult.iterations,
+          converged: lmResult.converged,
+          finalCost: lmResult.cost
+        };
+        break;
       default:
         return res.status(400).json({ error: '不支持的模型类型' });
     }
@@ -250,8 +494,8 @@ app.post('/api/fit', (req, res) => {
     return res.status(400).json({ error: '拟合计算失败: ' + e.message });
   }
 
-  const metrics = calculateMetrics(points, modelType, params);
-  const curvePoints = generateCurvePoints(points, modelType, params);
+  const metrics = calculateMetrics(points, modelType, params, customFormula);
+  const curvePoints = generateCurvePoints(points, modelType, params, 100, customFormula);
 
   const result = {
     id: generateId(),
@@ -260,6 +504,7 @@ app.post('/api/fit', (req, res) => {
     modelType,
     params,
     modelEquation,
+    customInfo,
     metrics: {
       rSquared: metrics.rSquared,
       mse: metrics.mse,
@@ -281,6 +526,16 @@ app.post('/api/fit', (req, res) => {
   writeJsonFile(HISTORY_FILE, history);
 
   res.json(result);
+});
+
+app.post('/api/validate-formula', (req, res) => {
+  const { formula, paramConfigs } = req.body;
+  if (!formula) {
+    return res.status(400).json({ error: '请输入公式' });
+  }
+  const paramNames = (paramConfigs || []).map(p => p.name);
+  const validation = validateCustomFormula(formula, paramNames);
+  res.json(validation);
 });
 
 app.get('/api/history', (req, res) => {

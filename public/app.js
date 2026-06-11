@@ -7,8 +7,15 @@ let isDirty = false;
 const modelTypeLabels = {
   linear: '线性模型',
   exponential: '指数模型',
-  quadratic: '二次曲线'
+  quadratic: '二次曲线',
+  custom: '自定义公式'
 };
+
+let currentFitTab = 'preset';
+let defaultParams = [
+  { name: 'a', initial: 1, lowerBound: '', upperBound: '' },
+  { name: 'b', initial: 0, lowerBound: '', upperBound: '' }
+];
 
 function showToast(message, type = 'info') {
   const toast = document.getElementById('toast');
@@ -41,6 +48,117 @@ function markDirty() {
 function clearDirty() {
   isDirty = false;
   updateDatasetButtons();
+}
+
+function initFitTabs() {
+  const tabBtns = document.querySelectorAll('.fit-tab-btn');
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.fitTab;
+      currentFitTab = tab;
+      tabBtns.forEach(b => b.classList.toggle('active', b.dataset.fitTab === tab));
+      document.getElementById('fit-tab-preset').style.display = tab === 'preset' ? 'block' : 'none';
+      document.getElementById('fit-tab-custom').style.display = tab === 'custom' ? 'block' : 'none';
+      hideFormulaError();
+    });
+  });
+}
+
+function addParamRow(name = '', initial = '', lowerBound = '', upperBound = '') {
+  const tbody = document.getElementById('paramsTableBody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" class="param-name" value="${name}" placeholder="参数名"></td>
+    <td><input type="number" step="any" class="param-initial" value="${initial}" placeholder="初值"></td>
+    <td><input type="number" step="any" class="param-lower" value="${lowerBound}" placeholder="-∞"></td>
+    <td><input type="number" step="any" class="param-upper" value="${upperBound}" placeholder="+∞"></td>
+    <td><button class="delete-param-btn" title="删除">✕</button></td>
+  `;
+  tr.querySelector('.delete-param-btn').addEventListener('click', () => {
+    tr.remove();
+  });
+  tr.querySelectorAll('input').forEach(input => {
+    input.addEventListener('input', validateFormulaDelayed);
+  });
+  tbody.appendChild(tr);
+}
+
+function getParamConfigs() {
+  const tbody = document.getElementById('paramsTableBody');
+  const configs = [];
+  Array.from(tbody.children).forEach(tr => {
+    const name = tr.querySelector('.param-name').value.trim();
+    const initial = parseFloat(tr.querySelector('.param-initial').value);
+    const lowerStr = tr.querySelector('.param-lower').value;
+    const upperStr = tr.querySelector('.param-upper').value;
+
+    if (name && !isNaN(initial)) {
+      const config = { name, initial };
+      if (lowerStr !== '') {
+        const lower = parseFloat(lowerStr);
+        if (!isNaN(lower)) config.lowerBound = lower;
+      }
+      if (upperStr !== '') {
+        const upper = parseFloat(upperStr);
+        if (!isNaN(upper)) config.upperBound = upper;
+      }
+      configs.push(config);
+    }
+  });
+  return configs;
+}
+
+function setParamConfigs(configs) {
+  const tbody = document.getElementById('paramsTableBody');
+  tbody.innerHTML = '';
+  configs.forEach(cfg => {
+    addParamRow(
+      cfg.name,
+      cfg.initial !== undefined ? cfg.initial : '',
+      cfg.lowerBound !== undefined ? cfg.lowerBound : '',
+      cfg.upperBound !== undefined ? cfg.upperBound : ''
+    );
+  });
+}
+
+function showFormulaError(message) {
+  const errorEl = document.getElementById('formulaError');
+  errorEl.textContent = message;
+  errorEl.style.display = 'block';
+}
+
+function hideFormulaError() {
+  const errorEl = document.getElementById('formulaError');
+  errorEl.style.display = 'none';
+}
+
+let formulaValidateTimer = null;
+function validateFormulaDelayed() {
+  if (formulaValidateTimer) clearTimeout(formulaValidateTimer);
+  formulaValidateTimer = setTimeout(async () => {
+    if (currentFitTab !== 'custom') return;
+    const formula = document.getElementById('customFormula').value.trim();
+    if (!formula) {
+      hideFormulaError();
+      return;
+    }
+    const paramConfigs = getParamConfigs();
+    try {
+      const res = await fetch('/api/validate-formula', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ formula, paramConfigs })
+      });
+      const data = await res.json();
+      if (data.valid) {
+        hideFormulaError();
+      } else {
+        showFormulaError(data.error || '公式无效');
+      }
+    } catch (e) {
+      // 静默失败，用户点击拟合时会再验证
+    }
+  }, 300);
 }
 
 function initCharts() {
@@ -232,6 +350,7 @@ function resetDisplay() {
   document.getElementById('metricMAE').textContent = '—';
   document.getElementById('eqFormula').textContent = '等待拟合...';
   document.getElementById('outliersSection').style.display = 'none';
+  document.getElementById('paramsResultSection').style.display = 'none';
 
   if (fitChart) {
     fitChart.data.datasets.forEach(ds => ds.data = []);
@@ -295,7 +414,26 @@ async function performFit() {
     return;
   }
 
-  const modelType = document.querySelector('input[name="modelType"]:checked').value;
+  let modelType;
+  let customFormula = null;
+  let paramConfigs = null;
+
+  if (currentFitTab === 'custom') {
+    modelType = 'custom';
+    customFormula = document.getElementById('customFormula').value.trim();
+    if (!customFormula) {
+      showToast('请输入自定义公式', 'error');
+      return;
+    }
+    paramConfigs = getParamConfigs();
+    if (paramConfigs.length === 0) {
+      showToast('请至少设置一个有效参数', 'error');
+      return;
+    }
+  } else {
+    modelType = document.querySelector('input[name="modelType"]:checked').value;
+  }
+
   const datasetName = document.getElementById('datasetName').value || '未命名数据集';
 
   const fitBtn = document.getElementById('fitBtn');
@@ -307,7 +445,7 @@ async function performFit() {
     const res = await fetch('/api/fit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ points, modelType, datasetName, datasetId: currentDatasetId })
+      body: JSON.stringify({ points, modelType, datasetName, datasetId: currentDatasetId, customFormula, paramConfigs })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || '拟合失败');
@@ -330,6 +468,22 @@ function displayFitResult(result) {
   document.getElementById('metricRMSE').textContent = result.metrics.rmse.toFixed(6);
   document.getElementById('metricMAE').textContent = result.metrics.mae.toFixed(6);
   document.getElementById('eqFormula').textContent = result.modelEquation;
+
+  const paramsResultSection = document.getElementById('paramsResultSection');
+  const paramsResultBody = document.getElementById('paramsResultBody');
+
+  if (result.modelType === 'custom' && result.params) {
+    paramsResultSection.style.display = 'block';
+    const paramNames = Object.keys(result.params);
+    paramsResultBody.innerHTML = paramNames.map(name => `
+      <tr>
+        <td>${name}</td>
+        <td>${result.params[name].toFixed(6)}</td>
+      </tr>
+    `).join('');
+  } else {
+    paramsResultSection.style.display = 'none';
+  }
 
   const normalPoints = [];
   const outlierPoints = [];
@@ -420,7 +574,29 @@ async function loadHistoryItem(id) {
     if (!res.ok) throw new Error(data.error);
 
     document.getElementById('datasetName').value = data.datasetName;
-    document.querySelector(`input[name="modelType"][value="${data.modelType}"]`).checked = true;
+
+    if (data.modelType === 'custom' && data.customInfo) {
+      currentFitTab = 'custom';
+      document.querySelectorAll('.fit-tab-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.fitTab === 'custom');
+      });
+      document.getElementById('fit-tab-preset').style.display = 'none';
+      document.getElementById('fit-tab-custom').style.display = 'block';
+      document.getElementById('customFormula').value = data.customInfo.formula || '';
+      if (data.customInfo.paramConfigs) {
+        setParamConfigs(data.customInfo.paramConfigs);
+      }
+    } else {
+      currentFitTab = 'preset';
+      document.querySelectorAll('.fit-tab-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.fitTab === 'preset');
+      });
+      document.getElementById('fit-tab-preset').style.display = 'block';
+      document.getElementById('fit-tab-custom').style.display = 'none';
+      const radio = document.querySelector(`input[name="modelType"][value="${data.modelType}"]`);
+      if (radio) radio.checked = true;
+    }
+
     setTableData(data.points);
     displayFitResult(data);
     currentResultId = id;
@@ -591,13 +767,19 @@ function initEventListeners() {
   document.getElementById('saveDatasetBtn').addEventListener('click', saveCurrentDataset);
   document.getElementById('updateDatasetBtn').addEventListener('click', updateCurrentDataset);
   document.getElementById('datasetName').addEventListener('input', markDirty);
+  document.getElementById('addParamBtn').addEventListener('click', () => {
+    addParamRow();
+  });
+  document.getElementById('customFormula').addEventListener('input', validateFormulaDelayed);
 }
 
 function init() {
   initCharts();
   initTabs();
+  initFitTabs();
   initEventListeners();
   clearDataTable();
+  setParamConfigs(defaultParams);
   loadHistory();
   loadDatasets();
   updateDatasetButtons();
